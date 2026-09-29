@@ -1,12 +1,12 @@
 {
-  "name": "Chinese Name Set",
+  "name": "Fantasy Chinese Name",
   "summary": "Five fictional Chinese name sets for towns, streets, stations and residents.",
   "description": "Five fictional Chinese name sets. One set decides town names, street and station names, and resident names.\n\nMainland / Tropical / Subarctic / Desert / Mixed.\n\nAll names are fictional. Road names follow the Chinese structure of a specific name plus a generic suffix.",
   "localization": {
     "zh_CN": {
-      "name": "幻想中国地名",
-      "summary": "提供五套虚构中国名称集，同时决定城镇名、街道车站名与居民姓名。",
-      "description": "五套虚构中国名称集。选定一套后，同时决定城镇名、街道与车站名、居民姓名。\n\n内地 / 热带 / 亚寒带 / 沙漠 / 综合。\n\n全部地名为虚构，",
+      "name": "幻想中国名称集",
+      "summary": "五套虚构中国名称集，同时决定城镇名、街道车站名与居民姓名。",
+      "description": "五套虚构中国名称集。选定一套后，同时决定城镇名、街道与车站名、居民姓名。\n\n内地 / 热带 / 亚寒带 / 沙漠 / 综合。\n\n全部地名为虚构，不复制真实中国城市与路名；道路名遵循「专名 + 通名」结构。",
       "nameset_han": "中国·内地",
       "nameset_ocean": "中国·热带",
       "nameset_subarctic": "中国·亚寒带",
@@ -14,9 +14,9 @@
       "nameset_mixed": "中国·综合"
     },
     "en": {
-      "name": "Chinese Name Set",
+      "name": "Fantasy Chinese Name",
       "summary": "Five fictional Chinese name sets for towns, streets, stations and residents.",
-      "description": "Five fictional Chinese name sets. One set decides town names, street and station names, and resident names.\n\nMainland / Tropical / Subarctic / Desert / Mixed.\n Road names follow the Chinese structure of a specific name plus a generic suffix.",
+      "description": "Five fictional Chinese name sets. One set decides town names, street and station names, and resident names.\n\nMainland / Tropical / Subarctic / Desert / Mixed.\n\nAll names are fictional. Road names follow the Chinese structure of a specific name plus a generic suffix.",
       "nameset_han": "Chinese - Mainland",
       "nameset_ocean": "Chinese - Tropical",
       "nameset_subarctic": "Chinese - Subarctic",

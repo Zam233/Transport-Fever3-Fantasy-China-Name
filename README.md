@@ -1,4 +1,4 @@
-# Transport Fever 3 — Fantasy China Name Set
+# Fantasy Chinese Name — Transport Fever 3
 
 为《Transport Fever 3》制作的**虚构中国名称集** MOD。名称集同时决定地图上的**城镇名、道路/车站名与居民姓名**。
 
