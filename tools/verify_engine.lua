@@ -78,6 +78,30 @@ local function readFile(p)
   return s
 end
 
+--=================================================== 0. mod.json flags ===
+print("")
+print("[0] mod.json (achievements / severity)")
+
+do
+  local src = readFile(ROOT .. "mod.json")
+  check(src ~= nil, "mod.json exists")
+  if src then
+    --[[ cosmetic = true is REQUIRED for achievements.
+      The modding manual: "Purely cosmetic mods can set the cosmetic property to
+      true to ensure that achievements can still be earned if only cosmetic mods
+      are used." This mod only renames towns/roads/residents and changes no
+      simulation values, so it qualifies as cosmetic. Shipping cosmetic=false
+      silently disables achievements for players, which is a real bug we hit.
+    ]]
+    check(src:find('"cosmetic"%s*:%s*true') ~= nil,
+          'mod.json has "cosmetic": true (else achievements are disabled)',
+          src:match('"cosmetic"%s*:%s*%a+'))
+    check(src:find('"modId"%s*:%s*"cn_names"') ~= nil,
+          'modId is cn_names', src:match('"modId"%s*:%s*"[^"]*"'))
+    check(src:find('"visible"%s*:%s*true') ~= nil, 'visible is true')
+  end
+end
+
 print("============================================================")
 print("Engine load path verification")
 print(ROOT)
