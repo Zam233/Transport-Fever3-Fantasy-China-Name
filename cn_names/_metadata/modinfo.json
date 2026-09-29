@@ -1,12 +1,12 @@
 {
   "name": "Chinese Name Set",
   "summary": "Five fictional Chinese name sets for towns, streets, stations and residents.",
-  "description": "Adds five fictional Chinese name sets. One name set governs town names, road/station names and resident names at the same time (this is how Transport Fever 3 works - there is a single name set option).\n\nEach set ships both a town-name generator and a road-name generator:\n\n1. Chinese - Mainland: Han town naming, with road styles from North China, Jiangnan, Lingnan and Central China.\n2. Chinese - Tropical: Chinese merchant ports across Southeast Asia, with road styles from Min/Taiwan and Southwest China.\n3. Chinese - Subarctic: the far-northern style of Haishenwai and Miaojie, with North China road styles.\n4. Chinese - Desert: oasis, irrigation, garrison and bilingual frontier naming, with road styles from Inner Mongolia and the Northwest.\n5. Chinese - Mixed: a weighted blend of all four, with road styles from all nine regions.\n\nAll generated names are fictional. No town or road name copies a real Chinese city or a famous real road. The place-transplant pool uses invented place names rather than real provinces and cities.\n\nRoad names always follow the legal Chinese structure of a specific name plus a generic suffix, with the suffix last (e.g. Renmin Road). Naming-code checks are built in: no foreign personal or place names, no rare characters, no duplicate or homophone names within one map, and no indecent or unlucky homophones.",
+  "description": "Five fictional Chinese name sets. One set decides town names, street and station names, and resident names.\n\nMainland / Tropical / Subarctic / Desert / Mixed.\n\nAll names are fictional. Road names follow the Chinese structure of a specific name plus a generic suffix.",
   "localization": {
     "zh_CN": {
       "name": "中国名称集",
-      "summary": "五套虚构中国名称集，同时决定城镇名、街道名、车站名与居民姓名。",
-      "description": "新增五套虚构中国名称集。注意：TF3 只有一个「名称集」选项，它同时决定**城镇名、道路名与居民姓名**（游戏内原话：改变游戏中城镇、道路名称和居民姓名的来源地区）。\n\n因此每套名称集都同时内置城镇名生成器与道路名生成器：\n\n1. 中国·内地 —— 汉地城镇命名；街道风格取自 华北 + 江南 + 岭南 + 华中。\n2. 中国·热带 —— 汉人海商主导东南亚后的港埠命名；街道风格取自 闽台 + 西南。\n3. 中国·亚寒带 —— 海参崴、庙街式的北疆命名；街道风格取自 东北（华北）。\n4. 中国·沙漠 —— 绿洲水利、屯垦军镇与民族语对音命名；街道风格取自 内蒙古 + 西北。\n5. 中国·综合 —— 前四类加权混合；街道风格取自全部九大地域。\n\n全部地名为**虚构**，不复制任何真实中国城市名或真实著名路名；地名移植池使用虚构地名，不使用真实省市名。\n\n道路名一律遵守中国地名的法定结构——「专名 + 通名」，通名固定在末尾（如「人民路」）。内置地名规范校验：不以外国人名地名命名、不用生僻字、同一地图内不重名不重音、不含不雅或不吉谐音。",
+      "summary": "五套虚构中国名称集，同时决定城镇名、街道车站名与居民姓名。",
+      "description": "五套虚构中国名称集。选定一套后，同时决定城镇名、街道与车站名、居民姓名。\n\n内地 / 热带 / 亚寒带 / 沙漠 / 综合。\n\n全部地名为虚构，不复制真实中国城市与路名；道路名遵循「专名 + 通名」结构。",
       "nameset_han": "中国·内地",
       "nameset_ocean": "中国·热带",
       "nameset_subarctic": "中国·亚寒带",
@@ -16,7 +16,7 @@
     "en": {
       "name": "Chinese Name Set",
       "summary": "Five fictional Chinese name sets for towns, streets, stations and residents.",
-      "description": "Adds five fictional Chinese name sets. One name set governs town names, road/station names and resident names at the same time, because Transport Fever 3 has a single name set option.\n\nEach set ships both a town-name generator and a road-name generator.\n\nAll generated names are fictional and no name copies a real Chinese city or famous real road.\n\nRoad names always follow the legal Chinese structure of a specific name plus a generic suffix, with the suffix last.",
+      "description": "Five fictional Chinese name sets. One set decides town names, street and station names, and resident names.\n\nMainland / Tropical / Subarctic / Desert / Mixed.\n\nAll names are fictional. Road names follow the Chinese structure of a specific name plus a generic suffix.",
       "nameset_han": "Chinese - Mainland",
       "nameset_ocean": "Chinese - Tropical",
       "nameset_subarctic": "Chinese - Subarctic",
