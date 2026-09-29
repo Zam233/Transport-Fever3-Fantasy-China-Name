@@ -201,17 +201,19 @@ local function streetsFn(captureParams, params)
 
   streetGen.seed((captureParams and captureParams.seed) or key)
 
-  local want = params.num
-  --[[ 池子必须建得足够大。
-    站名是「每建一个站要一条」，一张大地图可能有上千个站与路段。
-    原先 maxTotal = 1200，抽干后 request() 返回空数组，游戏就退回默认的
-    「停止#N」。实测 num=5000 只拿到 1 条、num=-1 只拿到 1 条，都是这个原因。
-    现在给足 20000（大图也够用），并在耗尽时自动补建（见 ensurePool）。
+  --[[ 池子与「永不返回空」的保证
+    实测（诊断标记 DBG-c11-n-1-oEMPTY）：游戏用 num = -1 反复索要名称池，
+    一旦拿到空表就退回默认的「停止#N」。
+    因此：
+      * maxTotal 给足 20000（allCap 单次建池 5000），避免大图抽干；
+      * requestAll / request 在取尽时自动补建，仍造不出新名则从头复用
+        —— 宁可偶尔重名，也绝不给空表（详见 streetnamegen.requestAll 注释）。
   ]]
   local opts = { maxTotal = 20000, allCap = 5000 }
 
   -- 注意：prof.regions 本身就是地域数组，不能再包一层 {}
   -- （包成 {{...}} 会让 poolKeyOf 对表做 concat 而报错）
+  local want = params.num
   local out
   if want == -1 or want == nil then
     out = streetGen.requestAll(prof.regions, opts)

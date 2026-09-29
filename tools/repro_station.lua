@@ -10,7 +10,24 @@
   Usage: texlua tools/repro_station.lua
 --------------------------------------------------------------------------]]
 
-local ROOT = "C:/Program Files (x86)/Steam/userdata/167294663/3493540/local/mods/cn_names/"
+-- Target install path: argv[1] overrides; default probes staging_area then mods.
+local DEFAULT_ROOTS = {
+  "C:/Program Files (x86)/Steam/userdata/167294663/3493540/local/staging_area/cn_names/",
+  "C:/Program Files (x86)/Steam/userdata/167294663/3493540/local/mods/cn_names/",
+}
+local ROOT = (arg and arg[1]) or nil
+if ROOT and ROOT ~= "" then
+  if ROOT:sub(-1) ~= "/" then ROOT = ROOT .. "/" end
+else
+  for _, cand in ipairs(DEFAULT_ROOTS) do
+    local p = io.open(cand .. "mod.json", "rb")
+    if p then p:close(); ROOT = cand; break end
+  end
+end
+if not ROOT then
+  print("could not find an installed copy; pass the path as argv[1]")
+  os.exit(2)
+end
 
 _G._ = function(s) return s end
 

@@ -14,7 +14,27 @@
   Usage: texlua tools/verify_engine.lua
 --------------------------------------------------------------------------]]
 
-local ROOT = "C:/Program Files (x86)/Steam/userdata/167294663/3493540/local/mods/cn_names/"
+-- Target install path. Override with argv[1] (e.g. the staging_area copy).
+-- Default: the staging_area copy, since that is what the game loads when both
+-- a staging_area and a manual-install copy exist (StagingArea has priority).
+local DEFAULT_ROOTS = {
+  "C:/Program Files (x86)/Steam/userdata/167294663/3493540/local/staging_area/cn_names/",
+  "C:/Program Files (x86)/Steam/userdata/167294663/3493540/local/mods/cn_names/",
+}
+
+local ROOT = (arg and arg[1]) or nil
+if ROOT and ROOT ~= "" then
+  if ROOT:sub(-1) ~= "/" then ROOT = ROOT .. "/" end
+else
+  for _, cand in ipairs(DEFAULT_ROOTS) do
+    local probe = io.open(cand .. "mod.json", "rb")
+    if probe then probe:close(); ROOT = cand; break end
+  end
+end
+if not ROOT then
+  print("could not find an installed copy; pass the path as argv[1]")
+  os.exit(2)
+end
 
 -- engine-provided translation function
 _G._ = function(s) return s end
@@ -367,6 +387,22 @@ if type(first) == "table" and type(second) == "table" and #second > 0 then
 end
 check(dupCross == 0, "two consecutive full drains share no names",
       "overlap=" .. dupCross)
+
+-- (e) THE ACTUAL IN-GAME BUG: the game calls with num = -1 REPEATEDLY.
+-- Observed in game as marker "DBG-c11-n-1-oEMPTY": the street function had been
+-- called 11 times, always with num = -1, and from the 2nd call onward it got an
+-- EMPTY table, so stations fell back to default names (Stop #1, Stop #2, ...).
+genmod.reset()
+local emptyCalls, sizes = 0, {}
+for _ = 1, 12 do
+  local r = D.streetsNameScriptFn({ style = "west" }, { num = -1, lang = "zh_CN" })
+  local n = (type(r) == "table") and #r or -1
+  sizes[#sizes + 1] = n
+  if n <= 0 then emptyCalls = emptyCalls + 1 end
+end
+check(emptyCalls == 0,
+      "12 consecutive num=-1 calls ALL return names (never empty)",
+      "empty=" .. emptyCalls .. " sizes=" .. table.concat(sizes, ","))
 
 print("")
 print(string.rep("=", 60))

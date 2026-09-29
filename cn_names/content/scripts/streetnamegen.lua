@@ -699,14 +699,13 @@ function M.request(regionOrKeys, params, opts)
   local k = poolKeyOf(regionOrKeys)
   local pool, cursor = M.ensurePool(regionOrKeys, opts)
 
-  local out = {}
+  -- num < 0（含 nil）：转交 requestAll，保持两条路径行为一致 ——
+  -- 都必须补建，因为游戏会反复用 num = -1 索要名称池。
   if num == -1 or num == nil then
-    -- 「返回全部」：一次性把当前池剩余全给出（不补建，避免无限增长）
-    for i = cursor, #pool do out[#out + 1] = pool[i] end
-    M._cursor[k] = #pool + 1
-    return out
+    return M.requestAll(regionOrKeys, opts)
   end
 
+  local out = {}
   local guard = 0
   while #out < num do
     if cursor > #pool then
@@ -725,14 +724,54 @@ function M.request(regionOrKeys, params, opts)
 end
 
 -- 「返回全部」的显式接口（num = -1）。
--- 语义与基游戏一致：返回**当前剩余的**全部名称，并推进游标。
--- 因此第二次调用会返回空（池已给出过），不会重复给同一批名字。
+--[[ 这是站名 bug 的真正根因所在，也是本文件最重要的一段逻辑。
+
+  实测诊断标记 DBG-c11-n-1-oEMPTY：游戏把 num = -1 当作
+  **「请提供名称池」**并**反复调用**；从第 2 次起返回空表，游戏就用默认名
+  （停止#1、停止#2…）。
+
+  这里有一个必须想清楚的**设计矛盾**：
+    * 我们希望「同一张图内尽量不重名」；
+    * 但游戏会无限次索要名称池，而一个地域的组合空间是**有限**的
+      （如西北单地域约 2600 个）。池子取尽后，要么重名，要么给空。
+
+  **绝不能给空** —— 游戏拿到空表就退回默认名，那比偶尔重名糟糕得多。
+  （基游戏自己就是从固定列表里**可重复随机抽**的，根本不保证不重名；
+   wiki 对城镇名也只是 "recommended"。）
+
+  所以策略是三级降级：
+    1) 有剩余 → 直接给；
+    2) 已取尽 → topUp 尝试造新名（升序优先，尽量不重名）；
+    3) 仍造不出 → **从头复用**已有名字（宁可重名，绝不给空）。
+]]
 function M.requestAll(regionOrKeys, opts)
   local k = poolKeyOf(regionOrKeys)
   local pool, cursor = M.ensurePool(regionOrKeys, opts)
+
+  -- 已取尽则先尝试补建
+  if cursor > #pool then
+    local guard = 0
+    while cursor > #pool and guard < 4 do
+      guard = guard + 1
+      local added = topUp(k, regionOrKeys)
+      if added == 0 then break end
+      pool = M._pools[k]
+    end
+  end
+
+  -- 仍取尽 → 从头复用（关键兜底：保证永不返回空）
+  if cursor > #pool then
+    cursor = 1
+  end
+
   local out = {}
   for i = cursor, #pool do out[#out + 1] = pool[i] end
   M._cursor[k] = #pool + 1
+
+  -- 极端兜底：池子本身为空（词表异常）时才可能走到这里
+  if #out == 0 then
+    out[1] = "人民路"
+  end
   return out
 end
 
