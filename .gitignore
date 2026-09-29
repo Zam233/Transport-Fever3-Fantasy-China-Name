@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Base-game files extracted for reference.
+# Transport Fever 3 base-game content may NOT be redistributed
+# (see the modding manual: game files may only be used to create TF3 mods,
+# not shared for other games or projects). Keep it local.
+# ---------------------------------------------------------------------------
+_ref/
+
+# Research and build intermediates (scraped pages, specs, exported name lists)
+research/
+build/
+
+# Superseded pre-merge mod folders (kept only locally for history)
+MOD1-中国城市名称集/
+MOD2-中国街道命名/
+
+# Scraped wiki notes / API dumps at the workspace root
+tf3_*.txt
+tf3_*.html
+tf3_*.json
+tf2_names.txt
+tf3_modding_start.html
++ 
+
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*.bak
+*.tmp

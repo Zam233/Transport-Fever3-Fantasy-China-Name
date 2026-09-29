@@ -1,0 +1,16 @@
+{
+  "zh_CN": {
+    "nameset_han": "中国·内地",
+    "nameset_ocean": "中国·热带",
+    "nameset_subarctic": "中国·亚寒带",
+    "nameset_west": "中国·沙漠",
+    "nameset_mixed": "中国·综合"
+  },
+  "en": {
+    "nameset_han": "Chinese - Mainland",
+    "nameset_ocean": "Chinese - Tropical",
+    "nameset_subarctic": "Chinese - Subarctic",
+    "nameset_west": "Chinese - Desert",
+    "nameset_mixed": "Chinese - Mixed"
+  }
+}
