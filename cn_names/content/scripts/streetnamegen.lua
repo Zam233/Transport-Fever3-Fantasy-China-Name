@@ -656,43 +656,8 @@ function M.ensurePool(regionOrKeys, opts)
   return M._pools[k], M._cursor[k]
 end
 
--- 池子抽干时补建（内部用）
---[[ 关键：补建前必须**推进 RNG 状态**。
-  否则 generateProfile 会从同一个随机状态出发，产出与旧池**完全相同**的名字，
-  去重后一条都加不进去（added == 0），于是 request 里 guard 立刻 break，
-  最终返回空表 —— 游戏就退回默认名。
-  这里只用引擎的 math.random（不依赖 os.time，沙箱内更稳）。
-]]
-local function topUp(k, regionOrKeys)
-  local opts = M._opts[k] or {}
-  local old = M._pools[k] or {}
-  local seen = {}
-  for _, v in ipairs(old) do seen[v] = true end
-
-  -- 推进随机状态：优先用引擎随机源
-  local adv
-  if type(math.random) == "function" then
-    local ok, v = pcall(math.random, 1, 2000000000)
-    if ok and type(v) == "number" then adv = v end
-  end
-  if not adv then adv = #old * 7919 + 13 end
-  M.seed("topup#" .. k .. "#" .. tostring(adv) .. "#" .. tostring(#old))
-
-  local res = M.generateProfile(regionOrKeys, opts)
-  local added = 0
-  for _, v in ipairs(res.names) do
-    if not seen[v] then
-      seen[v] = true
-      old[#old + 1] = v
-      added = added + 1
-    end
-  end
-  M._pools[k] = old
-  return added
-end
-
 -- 遵守 num 契约。regionOrKeys 支持字符串或地域数组（数组=多地域合并档案）
--- 池子抽干时自动补建，因此**不会返回空表**（除非彻底产不出新名）。
+-- 池子取尽后**环绕复用**，因此不会返回空表，也不会为了造新名而重复建表。
 function M.request(regionOrKeys, params, opts)
   params = params or {}
   local num = params.num
@@ -700,22 +665,19 @@ function M.request(regionOrKeys, params, opts)
   local pool, cursor = M.ensurePool(regionOrKeys, opts)
 
   -- num < 0（含 nil）：转交 requestAll，保持两条路径行为一致 ——
-  -- 都必须补建，因为游戏会反复用 num = -1 索要名称池。
+  -- 游戏会用 num = -1 反复索要名称池。
   if num == -1 or num == nil then
     return M.requestAll(regionOrKeys, opts)
   end
 
+  local n = #pool
+  if n == 0 then return {} end          -- 词表异常时才会发生；上层还有兜底
+
+  -- 环绕复用：位置越界即绕回开头，因此永远不会返回条目不足的结果，
+  -- 也不会像旧实现那样为了造新名而每次重新建表（那会导致 ~90ms/次）。
   local out = {}
-  local guard = 0
-  while #out < num do
-    if cursor > #pool then
-      -- 抽干 —— 补建
-      guard = guard + 1
-      if guard > 8 then break end          -- 防御：连续补建仍无新名则停
-      local added = topUp(k, regionOrKeys)
-      pool = M._pools[k]
-      if added == 0 then break end
-    end
+  for _ = 1, num do
+    if cursor > n then cursor = 1 end
     out[#out + 1] = pool[cursor]
     cursor = cursor + 1
   end
@@ -723,55 +685,34 @@ function M.request(regionOrKeys, params, opts)
   return out
 end
 
--- 「返回全部」的显式接口（num = -1）。
---[[ 这是站名 bug 的真正根因所在，也是本文件最重要的一段逻辑。
+--[[ 「返回全部」的显式接口（num = -1）。
 
-  实测诊断标记 DBG-c11-n-1-oEMPTY：游戏把 num = -1 当作
-  **「请提供名称池」**并**反复调用**；从第 2 次起返回空表，游戏就用默认名
-  （停止#1、停止#2…）。
+  【语义（实测得出）】游戏把 num = -1 当作「请提供名称池」，并且会**反复调用**
+  （实测标记 DBG-c11-n-1-oEMPTY：调用 11 次、每次 num = -1）。
 
-  这里有一个必须想清楚的**设计矛盾**：
-    * 我们希望「同一张图内尽量不重名」；
-    * 但游戏会无限次索要名称池，而一个地域的组合空间是**有限**的
-      （如西北单地域约 2600 个）。池子取尽后，要么重名，要么给空。
+  【绝不返回空】给空表 → 游戏用默认名（停止#N），比偶尔重名糟糕得多。
+  基游戏自己就是 `streets[math.random(1,#streets)]`，**可重复随机抽**；
+  wiki 对不重名也只是 "recommended"。
 
-  **绝不能给空** —— 游戏拿到空表就退回默认名，那比偶尔重名糟糕得多。
-  （基游戏自己就是从固定列表里**可重复随机抽**的，根本不保证不重名；
-   wiki 对城镇名也只是 "recommended"。）
+  【性能约束（重要）】曾经的做法是「取尽就 topUp 重新造名」。但每次调用都会把
+  整池给出、游标推到底，于是**下一次调用必然触发 topUp**，而 topUp 要重新生成
+  最多 5000 个名字（实测约 91 ms）—— 结果每次调用都耗 ~90 ms，游戏一选车站就掉帧。
 
-  所以策略是三级降级：
-    1) 有剩余 → 直接给；
-    2) 已取尽 → topUp 尝试造新名（升序优先，尽量不重名）；
-    3) 仍造不出 → **从头复用**已有名字（宁可重名，绝不给空）。
+  现在改为**游标环绕复用**：池子取尽就把游标绕回开头，继续给既有名字。
+  零成本、绝不返回空，代价只是取尽后开始出现重复（可接受）。
 ]]
 function M.requestAll(regionOrKeys, opts)
   local k = poolKeyOf(regionOrKeys)
   local pool, cursor = M.ensurePool(regionOrKeys, opts)
 
-  -- 已取尽则先尝试补建
-  if cursor > #pool then
-    local guard = 0
-    while cursor > #pool and guard < 4 do
-      guard = guard + 1
-      local added = topUp(k, regionOrKeys)
-      if added == 0 then break end
-      pool = M._pools[k]
-    end
-  end
-
-  -- 仍取尽 → 从头复用（关键兜底：保证永不返回空）
-  if cursor > #pool then
-    cursor = 1
-  end
+  -- 取尽 → 环绕复用（不再重新造名，避免每次调用 90ms 的建表开销）
+  if cursor > #pool then cursor = 1 end
 
   local out = {}
   for i = cursor, #pool do out[#out + 1] = pool[i] end
   M._cursor[k] = #pool + 1
 
-  -- 极端兜底：池子本身为空（词表异常）时才可能走到这里
-  if #out == 0 then
-    out[1] = "人民路"
-  end
+  if #out == 0 then out[1] = "人民路" end
   return out
 end
 

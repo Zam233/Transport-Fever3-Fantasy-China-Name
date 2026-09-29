@@ -365,28 +365,58 @@ check(type(big) == "table" and #big == 3000,
       "num=3000 is fully satisfied (old pool was only 1200)",
       type(big) == "table" and #big or big)
 
--- (c) drain via num=-1, then a normal request must still work (top-up path)
+-- (c) drain via num=-1, then a normal request must still work
 genmod.reset()
 local drained = D.streetsNameScriptFn({ style = "han" }, { num = -1, lang = "zh_CN" })
 local afterDrain = D.streetsNameScriptFn({ style = "han" }, { num = 5, lang = "zh_CN" })
 check(type(drained) == "table" and #drained > 1000,
       "num=-1 returns a full set (>1000)", type(drained) == "table" and #drained or drained)
 check(type(afterDrain) == "table" and #afterDrain == 5,
-      "after draining, num=5 still returns 5 (pool tops up)",
+      "after draining, num=5 still returns 5",
       type(afterDrain) == "table" and #afterDrain or afterDrain)
 
--- (d) draining twice must not hand out the same names again
+-- (d) exhausting the pool must WRAP AROUND and keep serving, not return empty.
+-- (We deliberately allow repeats once the finite name space is used up; the
+--  base game samples with replacement too. Serving an empty table is what made
+--  the game fall back to "Stop #1", which is far worse than a repeat.)
 genmod.reset()
-local first = D.streetsNameScriptFn({ style = "wu" }, { num = -1, lang = "zh_CN" })
-local second = D.streetsNameScriptFn({ style = "wu" }, { num = -1, lang = "zh_CN" })
-local dupCross = 0
-if type(first) == "table" and type(second) == "table" and #second > 0 then
-  local setF = {}
-  for _, v in ipairs(first) do setF[v] = true end
-  for _, v in ipairs(second) do if setF[v] then dupCross = dupCross + 1 end end
+local sizesD = {}
+for i = 1, 6 do
+  local r = D.streetsNameScriptFn({ style = "wu" }, { num = -1, lang = "zh_CN" })
+  sizesD[#sizesD + 1] = (type(r) == "table") and #r or -1
 end
-check(dupCross == 0, "two consecutive full drains share no names",
-      "overlap=" .. dupCross)
+local allServed = true
+for _, v in ipairs(sizesD) do if v <= 0 then allServed = false end end
+check(allServed, "6 full drains all serve names (wrap-around, never empty)",
+      table.concat(sizesD, ","))
+
+-- (f) PERFORMANCE REGRESSION GUARD.
+--[[ A previous fix made every call re-generate up to 5000 names (~90 ms each),
+-- which dropped the frame rate as soon as a station was selected. The hot path
+-- must stay well under a frame budget: we allow 5 ms per call here, which is
+-- ~20x the measured ~0.3 ms and still 18x faster than the broken version.
+]]
+genmod.reset()
+local _ = D.streetsNameScriptFn({ style = "han" }, { num = -1, lang = "zh_CN" })  -- warm
+local t0 = os.clock()
+for _ = 1, 100 do
+  D.streetsNameScriptFn({ style = "han" }, { num = -1, lang = "zh_CN" })
+end
+local perCallMs = (os.clock() - t0) * 1000 / 100
+check(perCallMs < 5,
+      string.format("num=-1 hot path is fast (%.3f ms/call, budget 5 ms)", perCallMs),
+      string.format("%.3f ms", perCallMs))
+
+genmod.reset()
+local _2 = D.streetsNameScriptFn({ style = "han" }, { num = 1, lang = "zh_CN" })
+local t1 = os.clock()
+for _ = 1, 500 do
+  D.streetsNameScriptFn({ style = "han" }, { num = 1, lang = "zh_CN" })
+end
+local perCallMs1 = (os.clock() - t1) * 1000 / 500
+check(perCallMs1 < 2,
+      string.format("num=1 hot path is fast (%.4f ms/call, budget 2 ms)", perCallMs1),
+      string.format("%.4f ms", perCallMs1))
 
 -- (e) THE ACTUAL IN-GAME BUG: the game calls with num = -1 REPEATEDLY.
 -- Observed in game as marker "DBG-c11-n-1-oEMPTY": the street function had been
