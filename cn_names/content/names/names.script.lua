@@ -202,16 +202,24 @@ local function streetsFn(captureParams, params)
   streetGen.seed((captureParams and captureParams.seed) or key)
 
   local want = params.num
-  local opts = { maxTotal = 1200 }
+  --[[ 池子必须建得足够大。
+    站名是「每建一个站要一条」，一张大地图可能有上千个站与路段。
+    原先 maxTotal = 1200，抽干后 request() 返回空数组，游戏就退回默认的
+    「停止#N」。实测 num=5000 只拿到 1 条、num=-1 只拿到 1 条，都是这个原因。
+    现在给足 20000（大图也够用），并在耗尽时自动补建（见 ensurePool）。
+  ]]
+  local opts = { maxTotal = 20000, allCap = 5000 }
+
   -- 注意：prof.regions 本身就是地域数组，不能再包一层 {}
   -- （包成 {{...}} 会让 poolKeyOf 对表做 concat 而报错）
   local out
   if want == -1 or want == nil then
-    out = streetGen.request(prof.regions, { num = -1 }, opts)
+    out = streetGen.requestAll(prof.regions, opts)
   else
     out = streetGen.request(prof.regions, { num = want }, opts)
   end
 
+  -- 兜底：仍为空时返回一条合法路名，绝不让引擎拿到空表
   if type(out) ~= "table" or #out == 0 then
     return { "人民路" }
   end

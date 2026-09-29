@@ -510,6 +510,10 @@ end
 function M.generateProfile(profileKeys, opts)
   opts = opts or {}
   local maxTotal = opts.maxTotal or 800
+  -- allCap：单次建池的产名上限（默认取 maxTotal）。
+  -- 用途：maxTotal 给得很高（防抽干）时，仍希望建池耗时可控。
+  local allCap = opts.allCap or maxTotal
+  if allCap > maxTotal then allCap = maxTotal end
   local keys = type(profileKeys) == "table" and profileKeys or { profileKeys }
 
   local sfxPool = M.buildSuffixPools(keys)
@@ -562,13 +566,13 @@ function M.generateProfile(profileKeys, opts)
   end
 
   local seen, names = {}, {}
-  local attempts, maxAttempts = 0, maxTotal * 60
+  local attempts, maxAttempts = 0, allCap * 60
   local reasons = {}
 
   -- 用第一个地域作为 check() 的 ctx（check 目前不依赖具体地域字段）
   local ctx = data.regions[keys[1]] or {}
 
-  while #names < maxTotal and attempts < maxAttempts do
+  while #names < allCap and attempts < maxAttempts do
     attempts = attempts + 1
     local tmpl = M.pickWeighted(templates)
     if tmpl then
@@ -608,14 +612,17 @@ end
 
 M._pools = {}
 M._cursor = {}
+M._opts = {}
 
 function M.reset(region)
   if region then
     M._pools[region] = nil
     M._cursor[region] = nil
+    M._opts[region] = nil
   else
     M._pools = {}
     M._cursor = {}
+    M._opts = {}
   end
 end
 
@@ -627,8 +634,20 @@ local function poolKeyOf(regionOrKeys)
   return tostring(regionOrKeys)
 end
 
+--[[ 取名称池；池子抽干时**自动补建**。
+
+  为什么必须补建：站名/路段名是「用一个取一个」的调用模式，一张大地图可能
+  要上千条。若池子耗尽后 request() 返回空表，游戏就退回默认的「停止#N」。
+  这正是用户报的 bug（第一个站是「人民路」，之后全是「停止#1/停止#2」）。
+
+  补建出来的名字与旧池去重（同图不重名），并把游标接续到新池开头。
+  若连续补建仍产不出新名（理论上不会发生），返回空表由上层兜底。
+]]
 function M.ensurePool(regionOrKeys, opts)
   local k = poolKeyOf(regionOrKeys)
+  opts = opts or {}
+  M._opts[k] = opts
+
   if not M._pools[k] then
     local res = M.generateProfile(regionOrKeys, opts)
     M._pools[k] = res.names
@@ -637,7 +656,43 @@ function M.ensurePool(regionOrKeys, opts)
   return M._pools[k], M._cursor[k]
 end
 
+-- 池子抽干时补建（内部用）
+--[[ 关键：补建前必须**推进 RNG 状态**。
+  否则 generateProfile 会从同一个随机状态出发，产出与旧池**完全相同**的名字，
+  去重后一条都加不进去（added == 0），于是 request 里 guard 立刻 break，
+  最终返回空表 —— 游戏就退回默认名。
+  这里只用引擎的 math.random（不依赖 os.time，沙箱内更稳）。
+]]
+local function topUp(k, regionOrKeys)
+  local opts = M._opts[k] or {}
+  local old = M._pools[k] or {}
+  local seen = {}
+  for _, v in ipairs(old) do seen[v] = true end
+
+  -- 推进随机状态：优先用引擎随机源
+  local adv
+  if type(math.random) == "function" then
+    local ok, v = pcall(math.random, 1, 2000000000)
+    if ok and type(v) == "number" then adv = v end
+  end
+  if not adv then adv = #old * 7919 + 13 end
+  M.seed("topup#" .. k .. "#" .. tostring(adv) .. "#" .. tostring(#old))
+
+  local res = M.generateProfile(regionOrKeys, opts)
+  local added = 0
+  for _, v in ipairs(res.names) do
+    if not seen[v] then
+      seen[v] = true
+      old[#old + 1] = v
+      added = added + 1
+    end
+  end
+  M._pools[k] = old
+  return added
+end
+
 -- 遵守 num 契约。regionOrKeys 支持字符串或地域数组（数组=多地域合并档案）
+-- 池子抽干时自动补建，因此**不会返回空表**（除非彻底产不出新名）。
 function M.request(regionOrKeys, params, opts)
   params = params or {}
   local num = params.num
@@ -646,16 +701,38 @@ function M.request(regionOrKeys, params, opts)
 
   local out = {}
   if num == -1 or num == nil then
+    -- 「返回全部」：一次性把当前池剩余全给出（不补建，避免无限增长）
     for i = cursor, #pool do out[#out + 1] = pool[i] end
     M._cursor[k] = #pool + 1
     return out
   end
-  for _ = 1, num do
-    if cursor > #pool then break end
+
+  local guard = 0
+  while #out < num do
+    if cursor > #pool then
+      -- 抽干 —— 补建
+      guard = guard + 1
+      if guard > 8 then break end          -- 防御：连续补建仍无新名则停
+      local added = topUp(k, regionOrKeys)
+      pool = M._pools[k]
+      if added == 0 then break end
+    end
     out[#out + 1] = pool[cursor]
     cursor = cursor + 1
   end
   M._cursor[k] = cursor
+  return out
+end
+
+-- 「返回全部」的显式接口（num = -1）。
+-- 语义与基游戏一致：返回**当前剩余的**全部名称，并推进游标。
+-- 因此第二次调用会返回空（池已给出过），不会重复给同一批名字。
+function M.requestAll(regionOrKeys, opts)
+  local k = poolKeyOf(regionOrKeys)
+  local pool, cursor = M.ensurePool(regionOrKeys, opts)
+  local out = {}
+  for i = cursor, #pool do out[#out + 1] = pool[i] end
+  M._cursor[k] = #pool + 1
   return out
 end
 

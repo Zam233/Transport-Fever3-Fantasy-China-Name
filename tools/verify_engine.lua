@@ -307,6 +307,67 @@ check(#settleHit == 0,
       settleTotal .. " street names end in a road generic, not a settlement generic",
       #settleHit > 0 and table.concat(settleHit, " ", 1, math.min(6, #settleHit)) or nil)
 
+--=============================================== 7. pool exhaustion =====
+print("")
+print("[7] pool exhaustion (the station-name bug)")
+
+--[[ REGRESSION: the reported bug was "first station gets Renmin Road, then every
+  later one falls back to Stop #1, Stop #2...". Root cause: the street pool was
+  only 1200 long and, once drained, request() returned an EMPTY table, so the
+  game used its default names. These assertions lock that down:
+    (a) many single-item calls (station pattern) all return a name
+    (b) a request larger than the old pool size is fully satisfied
+    (c) after the pool is drained, further requests top it up instead of failing
+]]
+local genmod = require("cn_names::/scripts/streetnamegen.lua")
+
+-- (a) station pattern: num = 1 repeatedly
+genmod.reset()
+local singles, singlesEmpty = {}, 0
+for _ = 1, 300 do
+  local r = D.streetsNameScriptFn({ style = "han" }, { num = 1, lang = "zh_CN" })
+  if type(r) ~= "table" or #r == 0 then singlesEmpty = singlesEmpty + 1
+  else singles[#singles + 1] = r[1] end
+end
+local uniqS, seenS = 0, {}
+for _, v in ipairs(singles) do
+  if not seenS[v] then seenS[v] = true; uniqS = uniqS + 1 end
+end
+check(singlesEmpty == 0, "300 single-item street calls all return a name",
+      "empty=" .. singlesEmpty)
+check(uniqS >= 200, "300 single-item street calls give >=200 distinct names",
+      "distinct=" .. uniqS)
+
+-- (b) request bigger than the old 1200 pool
+genmod.reset()
+local big = D.streetsNameScriptFn({ style = "han" }, { num = 3000, lang = "zh_CN" })
+check(type(big) == "table" and #big == 3000,
+      "num=3000 is fully satisfied (old pool was only 1200)",
+      type(big) == "table" and #big or big)
+
+-- (c) drain via num=-1, then a normal request must still work (top-up path)
+genmod.reset()
+local drained = D.streetsNameScriptFn({ style = "han" }, { num = -1, lang = "zh_CN" })
+local afterDrain = D.streetsNameScriptFn({ style = "han" }, { num = 5, lang = "zh_CN" })
+check(type(drained) == "table" and #drained > 1000,
+      "num=-1 returns a full set (>1000)", type(drained) == "table" and #drained or drained)
+check(type(afterDrain) == "table" and #afterDrain == 5,
+      "after draining, num=5 still returns 5 (pool tops up)",
+      type(afterDrain) == "table" and #afterDrain or afterDrain)
+
+-- (d) draining twice must not hand out the same names again
+genmod.reset()
+local first = D.streetsNameScriptFn({ style = "wu" }, { num = -1, lang = "zh_CN" })
+local second = D.streetsNameScriptFn({ style = "wu" }, { num = -1, lang = "zh_CN" })
+local dupCross = 0
+if type(first) == "table" and type(second) == "table" and #second > 0 then
+  local setF = {}
+  for _, v in ipairs(first) do setF[v] = true end
+  for _, v in ipairs(second) do if setF[v] then dupCross = dupCross + 1 end end
+end
+check(dupCross == 0, "two consecutive full drains share no names",
+      "overlap=" .. dupCross)
+
 print("")
 print(string.rep("=", 60))
 print(string.format("passed %d, failed %d", pass, fail))
