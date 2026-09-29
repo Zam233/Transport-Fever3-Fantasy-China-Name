@@ -1,0 +1,26 @@
+# Normalize line endings to LF in the repository.
+#
+# Why this matters here: the Transport Fever 3 base game ships its Lua sources
+# with LF endings. With Git's default `core.autocrlf=true` on Windows, checking
+# out or rebasing rewrites text files to CRLF, which makes the working tree differ
+# from every installed/staged copy and produces noisy diffs.
+#
+# Rule: everything textual is stored and checked out as LF. Binary assets are
+# left untouched.
+* text=auto eol=lf
+
+# Explicitly textual
+*.lua   text eol=lf
+*.tl    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.ps1   text eol=lf
+*.txt   text eol=lf
+
+# Keep these binary (no line-ending conversion)
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.dds   binary
+*.tga   binary
+*.zip   binary
